@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<!--
+  Space Copy Internship Application (screening form + specialization assessments)
+  Hosted on GitHub Pages: this file must be named index.html.
+
+  Where answers go (all through one Google Apps Script web app, see apps-script/Code.gs):
+  - All answers ...... Google Sheet ("Screening", "Technical Assessment", "Non-STEM Assessment" tabs)
+  - Files ............ Google Drive, one folder per applicant (links are written into the Sheet)
+
+  SETUP: deploy apps-script/Code.gs (see SETUP.md), then paste the web app URL into CONFIG.scriptUrl.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#0b1020; --card:#121a30; --line:#26314f; --field:#0d1428; --text:#e8ecf6; --muted:#9aa6c4;
+    --accent:#5b8cff; --accent-2:#8fb0ff; --err:#ff6b6b; --ok:#38d39f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55;font-size:16px}
+  .wrap{max-width:760px;margin:0 auto;padding:40px 20px 60px}
+  h1{font-size:28px;line-height:1.25;margin:0 0 6px;letter-spacing:-.01em}
+  .sub{color:var(--accent-2);font-weight:600;margin:0 0 20px;font-size:14px;text-transform:uppercase;letter-spacing:.08em}
+  .intro p{color:var(--muted);margin:0 0 12px}
+  .intro a{color:var(--accent-2)}
+  .req-note{font-size:13px;color:var(--muted);margin:18px 0 26px}
+  .star{color:var(--err);font-weight:700}
+  .opt-tag{color:var(--muted);font-weight:400;font-size:14px}
+
+  .part{margin:34px 0 14px;padding:0 2px}
+  .part h2{font-size:20px;margin:0 0 6px}
+  .part p{color:var(--muted);margin:0;font-size:15px}
+  .subhead{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-2);margin:26px 2px 10px}
+
+  .q{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:14px}
+  .q.invalid{border-color:var(--err)}
+  .q-label{font-weight:600;display:block;margin-bottom:4px}
+  .q-help{font-size:14px;color:var(--muted);margin:0 0 12px}
+  .err-msg{display:none;color:var(--err);font-size:13px;margin-top:10px}
+  .q.invalid .err-msg{display:block}
+  .field-label{display:block;font-size:14px;color:var(--muted);margin-top:12px}
+  input[type=text],input[type=email],input[type=tel],input[type=url],textarea{
+    width:100%;background:var(--field);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:11px 12px;font:inherit;margin-top:6px}
+  input:focus,textarea:focus{outline:none;border-color:var(--accent)}
+  textarea{min-height:110px;resize:vertical}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media (max-width:620px){.grid3,.grid2{grid-template-columns:1fr}}
+  .opt{display:flex;align-items:center;gap:10px;padding:7px 0;cursor:pointer}
+  .opt input{accent-color:var(--accent);width:18px;height:18px;margin:0;flex:none}
+  .other-row{display:flex;align-items:center;gap:10px;padding:4px 0}
+  .other-row input[type=text]{margin-top:0;padding:8px 10px}
+  .scale{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .scale-end{font-size:13px;color:var(--muted);max-width:170px}
+  .scale label{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:4px 10px;font-size:14px}
+  .scale input{accent-color:var(--accent);width:18px;height:18px;margin:0}
+  .notice{display:none;margin-top:12px;padding:10px 12px;border-radius:8px;
+    background:rgba(91,140,255,.12);border:1px solid rgba(91,140,255,.35);font-size:14px}
+  .notice.show{display:block}
+  .placeholder{background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:20px 22px;color:var(--muted);font-size:15px}
+  .followup{display:none;margin-top:10px}
+  .followup.show{display:block}
+  .followup textarea{min-height:80px}
+
+  .drop{border:2px dashed var(--line);border-radius:10px;padding:22px 14px;text-align:center;cursor:pointer;
+    background:var(--field);transition:border-color .15s,background .15s;margin-top:8px}
+  .drop:hover,.drop.over{border-color:var(--accent);background:rgba(91,140,255,.08)}
+  .drop.has{border-style:solid;border-color:var(--ok)}
+  .drop.full{opacity:.5;cursor:default}
+  .drop-title{font-weight:600}
+  .drop-hint{font-size:13px;color:var(--muted);margin-top:4px}
+  .drop-file{font-size:14px;margin-top:10px;word-break:break-all}
+  .drop-file.bad,.drop-msg.bad{color:var(--err)}
+  .drop-msg{font-size:13px;margin-top:8px;min-height:1px}
+  .x{background:none;border:0;color:var(--muted);padding:0 0 0 8px;margin:0;font-size:20px;line-height:1;cursor:pointer}
+  .x:hover{color:var(--err)}
+  .proj-list{margin-top:14px;display:flex;flex-direction:column;gap:12px}
+  .proj{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--field)}
+  .proj.invalid{border-color:var(--err)}
+  .proj-head{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px}
+  .proj-name{word-break:break-all}
+  .proj-name b{color:var(--accent-2)}
+  .proj textarea{min-height:80px;background:var(--bg)}
+
+  button.primary{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:14px 26px;
+    font:inherit;font-weight:600;cursor:pointer;margin-top:10px}
+  button.primary:hover{background:#4a7bf0}
+  button.primary:disabled{opacity:.6;cursor:default}
+  .form-err{color:var(--err);margin-top:12px;display:none}
+  .done{display:none;text-align:center;padding:60px 20px}
+  .done h2{margin:0 0 10px}
+  .done p{color:var(--muted)}
+  .check{width:56px;height:56px;border-radius:50%;background:rgba(56,211,159,.15);color:var(--ok);
+    display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="formView">
+    <p class="sub">Space Copy Inc. Internship Program</p>
+    <h1 id="title"></h1>
+    <div class="intro">
+      <p>Welcome to Space Copy's <span class="term"></span> Internship Application. Our Internship Program <span class="dates"></span>.</p>
+      <p>This application has two parts. The screening questions tell us about your background and interests so that we can pair you with projects that suit you. The specialization assessment, which appears once you choose a track, tells us which tools you already know so that we can prepare onboarding resources for you.</p>
+      <p>Please complete all sections below. If you have any questions or comments, please contact our program coordinator, Akshay Sunil, at <a href="mailto:info@spacecopy.com">info@spacecopy.com</a>.</p>
+      <p>Thank you for your interest in Space Copy. We look forward to speaking with you. Ad Astra! ✨</p>
+    </div>
+    <p class="req-note"><span class="star">*</span> Indicates a required question</p>
+
+    <form id="internForm" novalidate>
+      <div class="part"><h2>Part 1: Screening</h2></div>
+      <div id="mainQuestions"></div>
+
+      <div class="part"><h2>Part 2: Specialization Assessment</h2>
+        <p>Your answers in this part will NOT affect your candidacy. We use them to tailor a resource document that brings you up to speed quickly.</p></div>
+      <div class="placeholder" id="specPlaceholder">Select your internship track in Part 1 to see the questions for your specialization.</div>
+      <div id="spec_technical" hidden></div>
+      <div id="spec_business" hidden></div>
+
+      <div class="part"><h2>Part 3: Documents and Final Details</h2></div>
+      <div id="endQuestions"></div>
+
+      <button type="submit" class="primary" id="submitBtn">Submit Application</button>
+      <p class="form-err" id="formErr"></p>
+    </form>
+  </div>
+
+  <div class="done" id="doneView">
+    <div class="check">✓</div>
+    <h2>Application received</h2>
+    <p>Thank you for applying to the Space Copy Internship Program. Our team will review your application and contact you about next steps.</p>
+    <p>Questions? Contact <a href="mailto:info@spacecopy.com" style="color:#8fb0ff">info@spacecopy.com</a>.</p>
+  </div>
+
+</div>
+
+<script>
+/* ======================= CONFIG: EDIT THIS BLOCK ======================= */
+const CONFIG = {
+  term:  "Winter 2027",
+  dates: "starts part-time on January 1, 2027", // e.g. "runs part-time from January 1 to April 30, 2027"
+
+  // Google Apps Script web app URL (ends in /exec). It saves answers to the Sheet and files to Drive.
+  scriptUrl: "PASTE_APPS_SCRIPT_WEB_APP_URL",
+  docMaxMB: 10, projectMaxMB: 25, maxProjects: 5
+};
+
+// Specialization assessments. "sheet" is the Google Sheet tab the answers are saved to.
+const SPECS = {
+  technical: {
+    sheet: "Technical Assessment",
+    title: "Engineering, ISRU, Robotics, Computer Science/AI, Physics, and Materials Science",
+    intro: "These questions cover Git and GitHub, programming languages, engineering software, and 3D printing.",
+    questions: [
+      { key:"name",  type:"auto", from:"name" },
+      { key:"email", type:"auto", from:"email" },
+      { key:"spec",  type:"auto", from:"track" },
+      { key:"workOn", type:"textarea", optional:true,
+        label:"Please specify what you would like to be working on in your internship in a few words." },
+
+      { type:"heading", label:"Git and Version Control Knowledge" },
+      { key:"git", type:"radio", label:"How familiar are you with version control systems like Git?",
+        options:["Very familiar, I use it regularly","Somewhat familiar, I have used it occasionally","Not familiar at all"] },
+      { key:"branch", type:"radio", label:"Have you worked with branching and merging in Git?",
+        options:["Yes, I create and switch between branches frequently","Yes, but I am not very comfortable with it","No, I have never used branches in Git"] },
+      { key:"issues", type:"radio", label:"Do you use GitHub for managing tasks and tracking progress (e.g., using Issues and Project Boards)?",
+        options:["Yes, I use Issues and Project Boards regularly","I know about Issues and Project Boards but don’t use them much","No, I have not used Issues or Project Boards"] },
+
+      { type:"heading", label:"GitHub Actions and CI/CD" },
+      { key:"cicd", type:"radio", label:"Are you familiar with CI/CD (Continuous Integration/Continuous Deployment)?",
+        options:["Yes, I have worked with CI/CD tools like GitHub Actions","I have heard of CI/CD but never worked with it","No, I am not familiar with CI/CD at all"] },
+      { key:"actions", type:"radio", label:"Do you have experience using GitHub Actions for automating tasks (e.g., running tests, deployment)?",
+        options:["Yes, I have created workflows using GitHub Actions","I have used pre-existing workflows but have not created them myself","No, I have never used GitHub Actions"] },
+
+      { type:"heading", label:"General Development Skills" },
+      { key:"langs", type:"checkbox", other:true, label:"What programming languages are you comfortable with?", help:"Select all that apply.",
+        options:["Python","C++","Rust"] },
+      { key:"tools", type:"checkbox", other:true, label:"Have you used any of the following engineering tools?", help:"Check all that apply.",
+        options:["SolidWorks","Fusion 360","ANSYS","COMSOL","AutoCAD","MATLAB","Simulink","Blender (for modeling)"] },
+      { key:"print", type:"radio", label:"How comfortable are you with 3D printing concepts?",
+        options:["I have designed parts for printing","I have sliced models (Cura/Prusa/etc.)","I have only used pre-made models","I have no 3D printing experience"] },
+      { key:"materials", type:"checkbox", other:true, label:"Do you have experience with materials science or manufacturing processes?", help:"Check all that apply.",
+        options:["Polymers","Metals","Composites","Powder-bed processes","None"] },
+      { key:"collab", type:"radio", label:"Have you ever worked in a collaborative development environment (e.g., working with multiple developers on the same codebase)?",
+        options:["Yes, I have worked in a collaborative environment using version control","I have worked on group projects but without version control","No, I have not worked in a collaborative development environment"] },
+      { key:"ide", type:"checkbox", other:true, label:"What development environment(s) do you use?", help:"Select all that apply.",
+        options:["VS Code","PyCharm","CLion","Vim/Neovim"] },
+      { key:"os", type:"radio", other:true, label:"Which operating system will you primarily be developing on?",
+        options:["Windows","macOS","Linux"] },
+      { key:"cli", type:"radio", label:"Are you comfortable using the command line (terminal)?",
+        options:["Yes, I use it frequently","Somewhat, I can run basic commands","No, I rarely use it"] },
+      { key:"gitConf", type:"scale", label:"On a scale of 1 to 5, how confident are you in your ability to use Git and GitHub in a development environment?",
+        low:"Not Comfortable (I need assistance)", high:"Very Comfortable (I can do on my own)" },
+      { key:"helpAreas", type:"textarea", label:"What specific areas do you feel you need help with or would like more information on?" },
+      { key:"prs", type:"radio", label:"Have you used pull requests (PRs) before?",
+        options:["Yes, I have created and reviewed PRs","Yes, but only created my own PRs","No, I have never used pull requests"] },
+      { key:"merge", type:"radio", label:"Do you know how to resolve merge conflicts?",
+        options:["Yes, confident","Somewhat, I need guidance","No, I’ve never done this"] },
+      { key:"workflows", type:"checkbox", label:"Which Git workflow(s) are you familiar with?", help:"Select all that apply.",
+        options:["Git Flow","Feature Branch Workflow","Forking Workflow","None"] },
+      { key:"review", type:"radio", label:"Do you have experience with code review processes?",
+        options:["Yes, I have given and received reviews","I have only received code reviews","No experience"] },
+      { key:"docs", type:"radio", label:"Have you documented your work using tools like README files, wikis, or Markdown?",
+        options:["Yes, regularly","Sometimes","No"] },
+      { key:"agile", type:"radio", label:"Are you familiar with agile methodologies (e.g., sprints, standups)?",
+        options:["Yes, I’ve worked in an agile team","I’ve heard of it but haven't used it","No"] },
+      { key:"pm", type:"checkbox", label:"Do you have experience using project management tools?", help:"Select all that apply.",
+        options:["Jira","Trello","Notion","GitHub Projects","None"] },
+      { key:"embedded", type:"radio", label:"Do you have experience working with embedded systems, robotics, or hardware–software integration?",
+        options:["Yes","No"] }
+    ]
+  },
+
+  business: {
+    sheet: "Non-STEM Assessment",
+    title: "Public Policy, Finance, Legal, and Graphic Design",
+    intro: "These questions cover policy, finance, and design tools and topics, plus a few questions about 3D printing and Space Copy.",
+    questions: [
+      { key:"name",  type:"auto", from:"name" },
+      { key:"email", type:"auto", from:"email" },
+      { key:"spec", type:"textarea", label:"Specialization",
+        help:"Please specify what you would like to be working on in your internship in a few words according to your chosen specialization (public policy, finance, graphic design)." },
+
+      { type:"heading", label:"Technical Skills" },
+      { key:"isru", type:"radio", label:"Are you familiar with the principles of ISRU (In-Situ Resource Utilization)?",
+        options:["Yes","No","Somewhat"] },
+      { key:"principles", type:"checkbox", other:true,
+        label:"Which of the following have you researched or worked with related to policy, finance, or corporate operations?", help:"Check all that apply.",
+        options:["Financial Planning & Analysis (FP&A)","Managerial Accounting","Financial Reporting & Compliance","Budgeting & Forecasting",
+                 "ITAR/EAR Regulatory Compliance","International Financial Regulations (IFRS, FATCA, etc.)","Corporate Governance & Law",
+                 "Risk Management & Internal Controls","Tax Strategy & Compliance","Capital Structure & Investment Policy"] },
+      { key:"office", type:"radio", label:"Do you have experience with Microsoft Office (including Excel) and Google Drive (including Sheets)?",
+        options:["Yes","No"] },
+      { key:"platforms", type:"checkbox", other:true,
+        label:"Which modeling, analytics, or financial software platforms have you used?", help:"Check all that apply.",
+        options:["SAP ERP","Oracle Financials Cloud","QuickBooks","NetSuite","Microsoft Dynamics 365 Finance","Workiva","Tableau","Power BI","Anaplan","BlackLine"] },
+      { key:"printer", type:"radio", label:"Have you operated or supervised a 3D printer?", options:["Yes","No"] },
+      { key:"cad", type:"radio", label:"Have you performed simulations or analysis in any CAD software (FEA/CFD)?", options:["Yes","No"] },
+      { key:"coding", type:"textarea",
+        label:"Do you have any experience with GitHub, Git, or any affiliate coding languages (e.g. Python, C, C++, Rust, etc.) or any modelling/simulation software's? (Ansys, COMSOL, Solidworks, Blender, etc.) Please describe in detail." },
+      { key:"regs", type:"checkbox", other:true, label:"Are you familiar with any space-related regulatory bodies or treaties?", help:"Check all that apply.",
+        options:["NASA policies & directives","Canadian Space Agency regulations","Outer Space Treaty","Artemis Accords",
+                 "Department of Defense (DoD) regulations","Department of Energy (DOE) regulations",
+                 "Specific US military regulatory bodies (e.g. Army, Navy, Marine Corps, Air Force, Space Force)",
+                 "Commercial spaceflight licensing (FAA)","None"] },
+      { key:"legis", type:"scale", label:"How comfortable are you analyzing legislation or regulations for business impact?",
+        low:"Not comfortable", high:"Very comfortable" },
+      { key:"policyResearch", type:"textarea", label:"Have you conducted policy research before? If yes, in what areas? Please describe in detail." },
+      { key:"researchTools", type:"checkbox", label:"What tools or methods do you use for policy research or literature reviews?", help:"Check all that apply.",
+        options:["Google Scholar","Research databases (e.g., JSTOR, Scopus)","Government/regulatory websites","Citation managers (Zotero, Mendeley)","None"] },
+      { key:"grants", type:"radio", label:"Are you familiar with grant writing or funding proposal preparation?",
+        options:["Yes, I’ve written proposals","Somewhat, I’ve contributed","No"] },
+      { key:"topics", type:"text", label:"What emerging space policy topics interest you most (e.g., sustainability, debris mitigation, lunar governance)?" },
+      { key:"finModel", type:"checkbox", label:"Which financial modelling skills do you have experience with?", help:"Check all that apply.",
+        options:["Discounted Cash Flow (DCF)","Sensitivity analysis","Scenario analysis","Budget modeling","Cost modeling","CapEx/OpEx planning","None"] },
+      { key:"dashboards", type:"radio", label:"Have you built dashboards, coded apps, or created any visual financial reports?", options:["Yes","No"] },
+      { key:"finConcepts", type:"checkbox", label:"Are you familiar with any of the following finance concepts?", help:"Check all that apply.",
+        options:["Cost accounting","Transfer pricing","Variance analysis","Break-even analysis","Working capital management","Financial risk analysis"] },
+      { key:"investment", type:"radio", label:"Do you have experience with investment analysis or cap table modeling?", options:["Yes","No"] },
+      { key:"designTools", type:"checkbox", label:"Which design tools are you proficient in?", help:"Check all that apply.",
+        options:["Adobe Illustrator","Adobe Photoshop","Adobe InDesign","Figma","Canva","Blender","Fusion 360 (rendering)"] },
+      { key:"designWork", type:"checkbox", label:"What type of design work are you most comfortable with?", help:"Check all that apply.",
+        options:["Branding / identity design","Infographics","Pitch deck design","UI/UX design","3D visualization","Motion graphics","Social media content","Technical diagrams"] },
+      { key:"visualize", type:"scale", label:"How comfortable are you visualizing scientific or technical concepts?",
+        low:"Not Comfortable", high:"Very Comfortable" },
+      { key:"portfolio", type:"auto", from:"portfolio" },
+      { key:"daily", type:"textarea",
+        label:"Can you think of any items in your daily life that could be improved or customized using 3D printing?",
+        help:"For example, phone holders, cable organizers, kitchen tools, etc." },
+      { key:"extreme", type:"textarea", label:"In what ways do you think 3D printing could help in extreme environments?" },
+      { key:"excites", type:"textarea", label:"Which area of Space Copy excites you and will like to contribute and why?" }
+    ]
+  }
+};
+/* ======================================================================= */
+
+// Screening questions (Part 1)
+const MAIN = [
+  { key:"contact", type:"contact", label:"Please list your full name, phone number, and email address." },
+  { key:"age", type:"radio", label:"Please indicate your age category", help:"Participants under 18 will require parental consent.",
+    options:["Under 18","18-20","21-25","25+"] },
+  { key:"status", type:"checkbox", label:"Please indicate your current education and employment status.", help:"Select all that apply.",
+    options:["Student (Full-time)","Student (Part-time)","Employed (Full-time)","Employed (Part-time)"] },
+  { key:"education", type:"radio", label:"What is your highest level of education? (Including in-progress)",
+    options:["High School","Associates","Bachelors","Masters","PhD","Post Doc"] },
+  { key:"background", type:"textarea", label:"Please describe your academic and/or professional background in a few words." },
+  { key:"track", type:"radio", label:"Please indicate which internship track would best apply to your interest area",
+    options:["AI and Computer Science","Engineering and ISRU","Public Policy, Finance, and Legal","Physics and Materials Sciences","Robotics","Graphic Design"] },
+  { key:"aerospaceWork", type:"radio", label:"Have you previously worked in the aerospace field?",
+    options:["Yes, in another internship program","Yes, as an industry professional","Yes, as part of my academic institution (such as an aerospace club)","No"],
+    followUp:"Please describe your aerospace experience (organization, role, and dates)." },
+  { key:"otherProgram", type:"radio", label:"Are you currently enrolled in any internship programs outside of Space Copy?", options:["Yes","No"],
+    followUp:"Please list the program(s), the organization, and your expected weekly time commitment." },
+  { key:"priorExp", type:"radio", label:"Do you have any prior experience in 3D printing or aerospace?", options:["Yes","No"],
+    followUp:"Please describe your experience (printers, materials, software, or projects)." },
+  { key:"openLearning", type:"radio", label:"Are you open to learning new materials about space science and additive manufacturing?", options:["Yes","No"] },
+  { key:"credit", type:"radio", label:"Do you plan to utilize this internship experience for academic credit or to fulfill a co-op requirement?",
+    options:["Yes","No","Unsure"], followUp:"Please name your institution and the credit or co-op requirements we would need to meet." },
+  { key:"unpaid", type:"radio", label:"Do you acknowledge that this internship is unpaid and that its completion will be recognized with an accredited, certificate-based program outcome?",
+    options:["Yes, I Accept"] },
+  { key:"recommendation", type:"radio", label:"Will you require a letter of recommendation for future employment opportunities outside of Space Copy?",
+    options:["Yes","No","Unsure"], followUp:"Please describe what the letter is for (e.g., graduate school, employment) and any deadlines." },
+  { key:"nda", type:"radio", label:"Do you agree to uphold company policies surrounding confidentiality, and non-disclosure of patented and trade secret information?",
+    help:"A Mutual NDA will be issued prior to the start date of the internship program to validate and uphold confidentiality procedures.", options:["Yes","No"] },
+  { key:"workStyle", type:"radio", label:"Do you prefer to work independently, in a group, or both?", options:["Independent Tasks","Group Tasks","Both"] }
+];
+
+// Part 3
+const END = [
+  { key:"docs", type:"docs", label:"Please upload your CV and cover letter.",
+    help:`PDF, DOC, or DOCX, up to ${CONFIG.docMaxMB} MB each. Both are required.` },
+  { key:"links", type:"links", label:"Please share your LinkedIn profile and portfolio.",
+    help:"Your LinkedIn profile is required. A portfolio (such as a personal website or GitHub) is optional." },
+  { key:"projects", type:"projects", optional:true, label:"Prior project files (optional, but recommended)",
+    help:`Upload up to ${CONFIG.maxProjects} images or documents from prior projects. PDF, JPEG, JPG, or PNG, up to ${CONFIG.projectMaxMB} MB each. Please explain each file in the box that appears below it.` },
+  { key:"final", type:"textarea", label:"Are there any other details about yourself or questions that you would like to share?" }
+];
+
+const TECH_TRACKS = ["AI and Computer Science","Engineering and ISRU","Physics and Materials Sciences","Robotics"];
+const DOC_EXT = /\.(pdf|docx?)$/i, PROJ_EXT = /\.(pdf|jpe?g|png)$/i, MB = 1048576;
+const OTHER = "__other_option__";
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const isYes = v => /^yes/i.test(v || "");
+const sizeTxt = b => `${(b / MB).toFixed(1)} MB`;
+const activeSpec = () => { const t = answerOf("m_", {key:"track", type:"radio"}).v; return !t ? null : TECH_TRACKS.includes(t) ? "technical" : "business"; };
+
+const docSel = { cv:null, coverLetter:null };
+const projects = []; // { file, desc }
+
+/* ======================= Rendering ======================= */
+function qHTML(q, prefix){
+  const name = prefix + q.key;
+  if (q.type === "auto") return "";
+  if (q.type === "heading") return `<div class="subhead">${esc(q.label)}</div>`;
+
+  let body = "";
+  if (q.type === "radio" || q.type === "checkbox") {
+    body = q.options.map(o => `
+      <label class="opt"><input type="${q.type}" name="${name}" value="${esc(o)}"> <span>${esc(o)}</span></label>`).join("");
+    if (q.other) body += `
+      <div class="other-row"><label class="opt" style="padding:0"><input type="${q.type}" name="${name}" value="${OTHER}"> <span>Other:</span></label>
+        <input type="text" name="${name}__other" aria-label="Other"></div>`;
+    if (q.followUp) body += `
+      <div class="followup" id="fu_${name}">
+        <label class="field-label">${esc(q.followUp)} <span class="star">*</span></label>
+        <textarea name="fu_${name}"></textarea>
+      </div>`;
+  } else if (q.type === "scale") {
+    body = `<div class="scale"><span class="scale-end">${esc(q.low)}</span>
+      ${[1,2,3,4,5].map(n => `<label><input type="radio" name="${name}" value="${n}">${n}</label>`).join("")}
+      <span class="scale-end">${esc(q.high)}</span></div>`;
+  } else if (q.type === "text") {
+    body = `<input type="text" name="${name}">`;
+  } else if (q.type === "textarea") {
+    body = `<textarea name="${name}"></textarea>`;
+  } else if (q.type === "contact") {
+    body = `<div class="grid3">
+      <input type="text" name="c_name" placeholder="Full name" autocomplete="name">
+      <input type="tel" name="c_phone" placeholder="Phone number" autocomplete="tel">
+      <input type="email" name="c_email" placeholder="Email address" autocomplete="email"></div>`;
+  } else if (q.type === "docs") {
+    body = `<div class="grid2">${[["cv","CV"],["coverLetter","Cover Letter"]].map(([k,t]) => `
+      <div class="drop" data-doc="${k}">
+        <input type="file" accept=".pdf,.doc,.docx" hidden>
+        <div class="drop-title">${t} <span class="star">*</span></div>
+        <div class="drop-hint">Drag a file here or click to browse</div>
+        <div class="drop-file"></div>
+      </div>`).join("")}</div>`;
+  } else if (q.type === "links") {
+    body = `
+      <label class="field-label">LinkedIn profile URL <span class="star">*</span></label>
+      <input type="url" name="linkedin" placeholder="https://www.linkedin.com/in/your-name">
+      <label class="field-label">Portfolio URL <span class="opt-tag">(optional: personal website, GitHub, etc.)</span></label>
+      <input type="url" name="portfolio" placeholder="https://github.com/your-name">`;
+  } else if (q.type === "projects") {
+    body = `
+      <div class="drop" id="projDrop">
+        <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple hidden>
+        <div class="drop-title">Prior project files</div>
+        <div class="drop-hint" id="projHint"></div>
+      </div>
+      <div class="drop-msg" id="projMsg"></div>
+      <div class="proj-list" id="projList"></div>`;
+  }
+
+  const extra =
+    name === "m_age"   ? `<div class="notice" id="minorNotice">Because you are under 18, parental consent will be required before you can join the program.</div>` :
+    name === "m_track" ? `<div class="notice" id="trackNotice">Your specialization assessment for this track now appears in Part 2.</div>` : "";
+  const errText = {
+    contact:"Please enter your name, phone number, and a valid email.",
+    docs:"Please upload both your CV and your cover letter.",
+    links:"Please enter a valid LinkedIn profile URL. If you add a portfolio, it must be a valid URL.",
+    projects:"Please add an explanation for each uploaded file."
+  }[q.type] || (q.followUp ? "Please answer this question, and add details if you selected Yes."
+              : q.other ? "This question is required. If you select Other, please describe it." : "This question is required.");
+
+  return `<div class="q" data-q="${name}">
+    <span class="q-label">${esc(q.label)} ${q.optional ? "" : '<span class="star">*</span>'}</span>
+    ${q.help ? `<p class="q-help">${esc(q.help)}</p>` : ""}
+    ${body}${extra}
+    <div class="err-msg">${errText}</div>
+  </div>`;
+}
+
+function render(){
+  document.getElementById("title").textContent = `${CONFIG.term} Internship Application`;
+  document.querySelectorAll(".term").forEach(e => e.textContent = CONFIG.term);
+  document.querySelectorAll(".dates").forEach(e => e.textContent = CONFIG.dates);
+  document.getElementById("mainQuestions").innerHTML = MAIN.map(q => qHTML(q, "m_")).join("");
+  document.getElementById("endQuestions").innerHTML = END.map(q => qHTML(q, "e_")).join("");
+  for (const [id, s] of Object.entries(SPECS)) {
+    document.getElementById("spec_" + id).innerHTML =
+      `<div class="part" style="margin-top:0"><p><b style="color:var(--text)">${esc(s.title)}</b><br>${esc(s.intro)}</p></div>` +
+      s.questions.map(q => qHTML(q, id[0] + "_")).join("");
+  }
+}
+
+function showSpec(){
+  const a = activeSpec();
+  document.getElementById("specPlaceholder").hidden = !!a;
+  document.getElementById("spec_technical").hidden = a !== "technical";
+  document.getElementById("spec_business").hidden = a !== "business";
+}
+
+/* ======================= Uploads UI ======================= */
+function bindDrop(drop, input, onFiles){
+  drop.addEventListener("click", e => {
+    if (e.target === input || e.target.closest(".x") || drop.classList.contains("full")) return;
+    input.click();
+  });
+  input.addEventListener("click", e => e.stopPropagation());
+  input.addEventListener("change", () => { if (input.files.length) onFiles(input.files); input.value = ""; });
+  drop.addEventListener("dragover", e => { e.preventDefault(); if (!drop.classList.contains("full")) drop.classList.add("over"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", e => {
+    e.preventDefault(); drop.classList.remove("over");
+    if (!drop.classList.contains("full") && e.dataTransfer.files.length) onFiles(e.dataTransfer.files);
+  });
+}
+
+function wireDocDrops(){
+  document.querySelectorAll("[data-doc]").forEach(drop => {
+    const key = drop.dataset.doc, input = drop.querySelector("input"), out = drop.querySelector(".drop-file");
+    const set = f => {
+      out.classList.remove("bad"); docSel[key] = null; drop.classList.remove("has");
+      if (!f) { out.textContent = ""; return; }
+      if (!DOC_EXT.test(f.name)) { out.classList.add("bad"); out.textContent = "Please choose a PDF, DOC, or DOCX file."; return; }
+      if (f.size > CONFIG.docMaxMB * MB) { out.classList.add("bad"); out.textContent = `File is larger than ${CONFIG.docMaxMB} MB.`; return; }
+      docSel[key] = f; drop.classList.add("has");
+      out.innerHTML = `${esc(f.name)} (${sizeTxt(f.size)})<button type="button" class="x" aria-label="Remove file">&times;</button>`;
+      out.querySelector(".x").addEventListener("click", e => { e.stopPropagation(); set(null); });
+      if (docSel.cv && docSel.coverLetter) document.querySelector('[data-q="e_docs"]').classList.remove("invalid");
+    };
+    bindDrop(drop, input, files => set(files[0]));
+  });
+}
+
+function wireProjects(){
+  const drop = document.getElementById("projDrop");
+  bindDrop(drop, drop.querySelector("input"), files => addProjects([...files]));
+  renderProjects();
+}
+
+function addProjects(files){
+  const msg = document.getElementById("projMsg"), problems = [];
+  files.forEach(f => {
+    if (projects.length >= CONFIG.maxProjects) { problems.push(`${f.name}: limit of ${CONFIG.maxProjects} files reached`); return; }
+    if (!PROJ_EXT.test(f.name)) { problems.push(`${f.name}: must be PDF, JPEG, JPG, or PNG`); return; }
+    if (f.size > CONFIG.projectMaxMB * MB) { problems.push(`${f.name}: larger than ${CONFIG.projectMaxMB} MB`); return; }
+    projects.push({ file:f, desc:"" });
+  });
+  msg.className = "drop-msg" + (problems.length ? " bad" : "");
+  msg.textContent = problems.length ? `Not added: ${problems.join("; ")}.` : "";
+  renderProjects();
+}
+
+function renderProjects(){
+  const list = document.getElementById("projList"), drop = document.getElementById("projDrop");
+  const left = CONFIG.maxProjects - projects.length;
+  drop.classList.toggle("full", left === 0);
+  drop.classList.toggle("has", projects.length > 0);
+  document.getElementById("projHint").textContent = left === 0
+    ? `Maximum of ${CONFIG.maxProjects} files added. Remove one to add another.`
+    : `Drag files here or click to browse (${left} of ${CONFIG.maxProjects} remaining)`;
+  list.innerHTML = projects.map((p, i) => `
+    <div class="proj" data-i="${i}">
+      <div class="proj-head">
+        <span class="proj-name"><b>File ${i + 1}:</b> ${esc(p.file.name)} (${sizeTxt(p.file.size)})</span>
+        <button type="button" class="x" data-rm="${i}" aria-label="Remove file">&times;</button>
+      </div>
+      <label class="field-label">Explain this file: what the project was, your role, and the tools or methods you used. <span class="star">*</span></label>
+      <textarea data-desc="${i}">${esc(p.desc)}</textarea>
+    </div>`).join("");
+  list.querySelectorAll("[data-rm]").forEach(b => b.addEventListener("click", () => {
+    projects.splice(+b.dataset.rm, 1); document.getElementById("projMsg").textContent = ""; renderProjects();
+  }));
+  list.querySelectorAll("[data-desc]").forEach(t => t.addEventListener("input", () => {
+    projects[+t.dataset.desc].desc = t.value;
+    if (t.value.trim()) t.closest(".proj").classList.remove("invalid");
+  }));
+}
+
+/* ======================= Change handlers ======================= */
+function wireHelpers(form){
+  form.addEventListener("input", e => {
+    const t = e.target;
+    // Clear a text question's error while typing. Clearing it on "change" (which fires on blur)
+    // shifts the layout mid-click and makes the applicant's next click miss.
+    const box = t.closest(".q");
+    if (box && box.classList.contains("invalid") && !["e_docs","e_projects"].includes(box.dataset.q)) box.classList.remove("invalid");
+    // Typing in an "Other" box selects its Other option
+    if (t.name && t.name.endsWith("__other") && t.value) {
+      const opt = form.querySelector(`[name="${t.name.slice(0, -7)}"][value="${OTHER}"]`);
+      if (opt && !opt.checked) opt.checked = true;
+    }
+  });
+  form.addEventListener("change", e => {
+    const t = e.target;
+    const fq = MAIN.find(q => "m_" + q.key === t.name && q.followUp);
+    if (fq) document.getElementById("fu_" + t.name).classList.toggle("show", isYes(t.value));
+    if (t.name === "m_age") document.getElementById("minorNotice").classList.toggle("show", t.value === "Under 18");
+    if (t.name === "m_track") { document.getElementById("trackNotice").classList.add("show"); showSpec(); }
+    const box = t.closest(".q");
+    if (box && box.classList.contains("invalid") && !["e_docs","e_projects"].includes(box.dataset.q)) box.classList.remove("invalid");
+  });
+}
+
+/* ======================= Reading answers ======================= */
+const formEl = () => document.getElementById("internForm");
+const txt = n => (formEl().querySelector(`[name="${n}"]`)?.value || "").trim();
+const normUrl = u => u && !/^https?:\/\//i.test(u) ? "https://" + u : u;
+const validUrl = u => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) && x.hostname.includes("."); } catch { return false; } };
+
+// Returns { v: string | string[], other: string, fu: string }
+function answerOf(prefix, q){
+  const name = prefix + q.key, f = formEl();
+  if (q.type === "radio" || q.type === "scale") {
+    const el = f.querySelector(`[name="${name}"]:checked`), v = el ? el.value : "";
+    return { v, other: v === OTHER ? txt(name + "__other") : "", fu: q.followUp && isYes(v) ? txt("fu_" + name) : "" };
+  }
+  if (q.type === "checkbox") {
+    const v = [...f.querySelectorAll(`[name="${name}"]:checked`)].map(e => e.value);
+    return { v, other: v.includes(OTHER) ? txt(name + "__other") : "" };
+  }
+  return { v: txt(name) };
+}
+
+function isAnswered(q, a){
+  if (q.optional || q.type === "heading" || q.type === "auto") return true;
+  const has = Array.isArray(a.v) ? a.v.length > 0 : !!a.v;
+  if (!has) return false;
+  const otherPicked = Array.isArray(a.v) ? a.v.includes(OTHER) : a.v === OTHER;
+  if (otherPicked && !a.other) return false;
+  if (q.followUp && isYes(a.v) && !a.fu) return false;
+  return true;
+}
+
+function specialAnswers(){
+  const n = txt("c_name"), p = txt("c_phone"), e = txt("c_email");
+  const li = normUrl(txt("linkedin")), pf = normUrl(txt("portfolio"));
+  projects.forEach(x => x.desc = x.desc.trim());
+  return {
+    contact: { n, p, e, ok: !!(n && p && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) },
+    docs:    { ok: !!(docSel.cv && docSel.coverLetter) },
+    links:   { li, pf, ok: validUrl(li) && /(^|\.)linkedin\.com$/i.test(new URL(validUrl(li) ? li : "https://x.co").hostname) && (!pf || validUrl(pf)) },
+    projects:{ ok: projects.every(x => x.desc) }
+  };
+}
+
+function validate(){
+  const sp = specialAnswers(), f = formEl();
+  let firstBad = null;
+  const mark = (name, ok) => {
+    const box = f.querySelector(`[data-q="${name}"]`);
+    if (!box) return;
+    box.classList.toggle("invalid", !ok);
+    if (!ok && !firstBad) firstBad = box;
+  };
+  MAIN.forEach(q => mark("m_" + q.key, sp[q.key] ? sp[q.key].ok : isAnswered(q, answerOf("m_", q))));
+  const s = activeSpec();
+  if (s) SPECS[s].questions.forEach(q => { if (q.key) mark(s[0] + "_" + q.key, isAnswered(q, answerOf(s[0] + "_", q))); });
+  END.forEach(q => mark("e_" + q.key, sp[q.key] ? sp[q.key].ok : isAnswered(q, answerOf("e_", q))));
+  document.querySelectorAll(".proj").forEach(el => el.classList.toggle("invalid", !projects[+el.dataset.i].desc));
+  return { firstBad, sp };
+}
+
+/* ======================= Formatting answers for the Sheet ======================= */
+function fmt(a){
+  const vals = Array.isArray(a.v) ? a.v : (a.v ? [a.v] : []);
+  return vals.map(v => v === OTHER ? `Other: ${a.other}` : v).join("; ");
+}
+
+// [column header, value] pairs for every answerable question in a section
+function sectionFields(qs, prefix){
+  const out = [];
+  qs.forEach(q => {
+    if (!q.key || q.type === "auto" || ["contact","docs","links","projects"].includes(q.type)) return;
+    const a = answerOf(prefix, q);
+    out.push([q.label, fmt(a)]);
+    if (q.followUp) out.push([`${q.label} (details)`, a.fu || ""]);
+  });
+  return out;
+}
+
+/* ======================= Talking to the Apps Script ======================= */
+async function post(payload){
+  // No Content-Type header: sent as text/plain so Apps Script accepts it without a CORS preflight.
+  const r = await fetch(CONFIG.scriptUrl, { method:"POST", body: JSON.stringify(payload) });
+  let j;
+  try { j = await r.json(); } catch { throw new Error("the server did not respond correctly"); }
+  if (!j.ok) throw new Error(j.error || "the server rejected the request");
+  return j;
+}
+
+const toB64 = f => new Promise((res, rej) => {
+  const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(f);
+});
+
+function makeSid(){
+  const d = new Date(), pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}-${Math.random().toString(36).slice(2,7)}`;
+}
+
+// One request per file, so large files don't hit Apps Script's request size limit.
+async function uploadAll(sid, name, email, onProgress){
+  const items = [
+    { field:"cv", label:"CV", file:docSel.cv },
+    { field:"coverLetter", label:"Cover letter", file:docSel.coverLetter },
+    ...projects.map((p, i) => ({ field:"project", index:i + 1, label:`Project file ${i + 1}`, file:p.file, desc:p.desc }))
+  ];
+  const results = [];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    onProgress(i + 1, items.length);
+    try {
+      const j = await post({ action:"upload", sid, name, email, field:it.field, index:it.index || 0, desc:it.desc || "",
+        fileName:it.file.name, type:it.file.type || "application/octet-stream", data: await toB64(it.file) });
+      results.push({ field:it.field, label:it.label, url:j.url, folderUrl:j.folderUrl, desc:it.desc });
+    } catch (ex) { throw new Error(`${it.label}: ${ex.message}`); }
+  }
+  return results;
+}
+
+/* ======================= Submit ======================= */
+async function submit(e){
+  e.preventDefault();
+  const err = document.getElementById("formErr"), btn = document.getElementById("submitBtn");
+  const { firstBad, sp } = validate();
+  if (firstBad) {
+    err.textContent = "Please complete the highlighted questions.";
+    err.style.display = "block"; firstBad.scrollIntoView({ behavior:"smooth", block:"center" }); return;
+  }
+  err.style.display = "none";
+  if (!CONFIG.scriptUrl || CONFIG.scriptUrl.startsWith("PASTE")) {
+    err.textContent = "Applications are not open yet. Please email info@spacecopy.com.";
+    err.style.display = "block"; return;
+  }
+  btn.disabled = true;
+
+  try {
+    const sid = makeSid(), { n, p, e: email } = sp.contact;
+    const files = await uploadAll(sid, n, email, (i, total) => btn.textContent = `Uploading file ${i} of ${total}...`);
+    btn.textContent = "Submitting...";
+
+    const track = answerOf("m_", {key:"track", type:"radio"}).v, specId = activeSpec();
+    const fileUrl = f => (files.find(x => x.field === f) || {}).url || "";
+    const screening = [
+      ["Submission ID", sid], ["Full name", n], ["Phone", p], ["Email", email],
+      ...sectionFields(MAIN, "m_"),
+      ["LinkedIn", sp.links.li], ["Portfolio", sp.links.pf || ""],
+      ["CV", fileUrl("cv")], ["Cover letter", fileUrl("coverLetter")],
+      ["Project files", files.filter(f => f.field === "project").map(f => `${f.label}: ${f.url}\nExplanation: ${f.desc}`).join("\n\n")],
+      ["Files folder", files[0] ? files[0].folderUrl : ""],
+      ...sectionFields(END, "e_")
+    ];
+    const assessment = [
+      ["Submission ID", sid], ["Full name", n], ["Email", email], ["Track", track],
+      ...sectionFields(SPECS[specId].questions, specId[0] + "_")
+    ];
+
+    await post({ action:"submit", sid, name:n, email, track, sheets:[
+      { name:"Screening", fields:screening },
+      { name:SPECS[specId].sheet, fields:assessment }
+    ]});
+
+    document.getElementById("formView").style.display = "none";
+    document.getElementById("doneView").style.display = "block";
+    window.scrollTo(0, 0);
+  } catch (ex) {
+    btn.disabled = false; btn.textContent = "Submit Application";
+    err.textContent = `Submission failed (${ex.message}). Please try again, or email info@spacecopy.com.`;
+    err.style.display = "block";
+  }
+}
+
+/* ======================= Init ======================= */
+render();
+wireHelpers(formEl());
+wireDocDrops();
+wireProjects();
+formEl().addEventListener("submit", submit);
+</script>
+</body>
+</html>
